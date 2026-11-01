@@ -1,0 +1,82 @@
+
+# Pour granular particles into chute container, then induce flow
+
+
+atom_style      sphere # the shape of the particle 
+boundary        p p f # f means fixed i.e defined start and stop, p means the boundry is cyclic
+newton          off
+comm_modify     vel yes
+
+lattice         sc 1 # type of lattice for sieve creation 
+region          reg block -5.5 5.5 -5.5 5.5 -0.5 49.5 units box # defining the box 
+create_box      2 reg
+
+# upper box
+region          upreg block -5 5 -5 5 40 49.5 units box # the particle pouring reigion 
+# lattice
+region          ok block -5.5 5.5 -5.5 5.5  19.5 20.5 units box
+region          cily cylinder z 0 0 1 18 21
+
+neighbor        0.2 bin
+neigh_modify    delay 0
+
+# lattice creation
+create_atoms    1 region ok
+
+set             type 1 mass 1.0
+set             type 1 diameter 1.0
+
+# type groups
+group           big type 1
+group           small type 2
+#group           three type 3
+
+# IMPORTANT NOTE: these values of stiffness (2000) and timestep (0.001)
+# are used in this example file to produce a quick simulation and movie.
+# More appropriate values for realistic simulations would be
+# k = 2.0e5 and dt = 0.0001, as in bench/in.chute.
+
+pair_style      gran/hertz/history 200000.0 NULL 50 NULL 1  0 # forces 
+
+pair_coeff      1 *
+pair_coeff      2 2*
+#pair_coeff      3 3*
+
+
+timestep        0.001 # increase for more detailed simulation 
+fix             1 all nve/sphere
+fix             2 all gravity 1.0 spherical 0.0 -180.0
+
+#plane
+fix             zlower all wall/gran hertz/history 200000.0 NULL 50 NULL 1 0 &
+                zplane 0 2000.0
+
+# fix lattice
+fix             e big  freeze
+
+# thermo comands
+
+compute         tmp small temp/region cily
+
+#force on red due to blue
+
+compute         force big group/group small
+
+
+
+thermo          1000
+thermo_style    custom step atoms c_tmp c_force
+thermo_modify   lost ignore norm no
+compute_modify  thermo_temp dynamic/dof yes
+
+# dumping position and ke
+
+dump            1 all atom 1000 single3.por
+#dump            2 all custom 1000 ked.pour id  mass
+
+#delete_atoms     region cily
+
+fix              sml small pour 500 2 4872 region upreg diam one 0.4
+set              type 2 mass 0.064
+
+run              250000
